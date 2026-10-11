@@ -370,7 +370,7 @@ function printInvoice() {
 async function mailInvoice() {
   const mailBtn = $("mailBtn");
   const oldText = mailBtn.textContent;
-    
+      
   const customerEmail = $("customerEmail").value.trim();
   if (!customerEmail) {
     alert("Please enter a customer email address first.");
@@ -379,14 +379,18 @@ async function mailInvoice() {
   }
 
   const subjectString = getFormattedSubject();
-  const bodyString = getFormattedBody();
+  const originalBodyString = getFormattedBody();
+  
+  // Place the Email first, Subject second, then the body.
+  const combinedBodyString = `${customerEmail}\n${subjectString}\n\n--------------------------------\n\n${originalBodyString}`;
+  
   const filename = `${subjectString}.pdf`;
 
   mailBtn.textContent = "Preparing PDF...";
   mailBtn.disabled = true;
 
   const element = $("paper");
-    
+      
   const origMinHeight = element.style.minHeight;
   const origHeight = element.style.height;
   const origOverflow = element.style.overflow;
@@ -408,23 +412,33 @@ async function mailInvoice() {
     };
 
     const pdfBlob = await html2pdf().set(opt).from(element).output('blob');
-    
-    // 1. Instantly trigger PDF download
-    const url = URL.createObjectURL(pdfBlob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const file = new File([pdfBlob], filename, { type: 'application/pdf' });
 
-    // 2. Open Mail app directly with perfectly formatted To, Subject, and Body
-    setTimeout(() => {
-      const mailtoUrl = `mailto:${encodeURIComponent(customerEmail)}?subject=${encodeURIComponent(subjectString)}&body=${encodeURIComponent(bodyString)}`;
+    // 1. Native Share Sheet for iOS/iPadOS (Automatically attaches file to Mail)
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          text: combinedBodyString 
+        });
+      } catch (e) {
+        console.log("Share sheet dismissed");
+      }
+    } 
+    // 2. Fallback for Desktop browsers
+    else {
+      const url = URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      const mailtoUrl = `mailto:${encodeURIComponent(customerEmail)}?subject=&body=${encodeURIComponent(combinedBodyString)}`;
       window.location.href = mailtoUrl;
-    }, 300);
-
+    }
   } catch (err) {
     if (err.name !== 'AbortError') {
       console.error("Mail invoice error:", err);
