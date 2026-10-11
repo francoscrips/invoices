@@ -177,7 +177,7 @@
   <div class="toolbar no-print">
     <h1>Francisco Morales</h1>
     <button id="mailBtn" onclick="mailInvoice()">Mail Invoice</button>
-    <button id="printBtn" class="secondary" onclick="printInvoice()">Print Invoice</button>
+    <button id="savePdfBtn" class="secondary" onclick="savePdf()">Save PDF</button>
     <button class="secondary" onclick="newInvoice()">New invoice +1</button>
   </div>
 
@@ -358,14 +358,55 @@ function esc(s){
   }[c]));
 }
 
-/* ---------- Printing & Email Actions ---------- */
+/* ---------- Save Perfect PDF Action ---------- */
 
-function printInvoice() {
-  const origTitle = document.title;
-  document.title = getFormattedSubject();
-  window.print();
-  document.title = origTitle;
+async function savePdf() {
+  const btn = $("savePdfBtn");
+  const oldText = btn.textContent;
+  btn.textContent = "Saving...";
+  btn.disabled = true;
+
+  const filename = getFormattedSubject() + ".pdf";
+  const element = $("paper");
+      
+  const origMinHeight = element.style.minHeight;
+  const origHeight = element.style.height;
+  const origOverflow = element.style.overflow;
+  const origBoxShadow = element.style.boxShadow;
+
+  element.style.minHeight = "296mm";
+  element.style.height = "296mm";
+  element.style.overflow = "hidden";
+  element.style.boxShadow = "none";
+
+  try {
+    const opt = {
+      margin:       0,
+      filename:     filename,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true, logging: false, scrollY: 0 },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak:    { mode: 'none' }
+    };
+
+    // This triggers a direct, clean download of the PDF without print dialogs
+    await html2pdf().set(opt).from(element).save();
+
+  } catch (err) {
+    console.error("PDF Save error:", err);
+    alert("Could not save PDF.");
+  } finally {
+    element.style.minHeight = origMinHeight;
+    element.style.height = origHeight;
+    element.style.overflow = origOverflow;
+    element.style.boxShadow = origBoxShadow;
+
+    btn.textContent = oldText;
+    btn.disabled = false;
+  }
 }
+
+/* ---------- Mail Action ---------- */
 
 async function mailInvoice() {
   const mailBtn = $("mailBtn");
@@ -414,7 +455,6 @@ async function mailInvoice() {
     const pdfBlob = await html2pdf().set(opt).from(element).output('blob');
     const file = new File([pdfBlob], filename, { type: 'application/pdf' });
 
-    // 1. Native Share Sheet for iOS/iPadOS (Automatically attaches file to Mail)
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
         await navigator.share({
@@ -425,7 +465,6 @@ async function mailInvoice() {
         console.log("Share sheet dismissed");
       }
     } 
-    // 2. Fallback for Desktop browsers
     else {
       const url = URL.createObjectURL(pdfBlob);
       const a = document.createElement('a');
@@ -442,7 +481,7 @@ async function mailInvoice() {
   } catch (err) {
     if (err.name !== 'AbortError') {
       console.error("Mail invoice error:", err);
-      alert("Could not generate PDF. Please use the Print button to save as PDF.");
+      alert("Could not generate PDF. Please use the Save PDF button instead.");
     }
   } finally {
     element.style.minHeight = origMinHeight;
