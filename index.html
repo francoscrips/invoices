@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="en">
 <head>
@@ -411,20 +410,7 @@ async function mailInvoice() {
     const pdfBlob = await html2pdf().set(opt).from(element).output('blob');
     const file = new File([pdfBlob], filename, { type: 'application/pdf' });
 
-    // Download PDF for attachment
-    const url = URL.createObjectURL(pdfBlob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    // Open mail client with pre-filled To, Subject, and Body
-    const mailtoUrl = `mailto:${encodeURIComponent(customerEmail)}?subject=${encodeURIComponent(subjectString)}&body=${encodeURIComponent(bodyString)}`;
-    window.location.href = mailtoUrl;
-
+    // 1. Native Share Sheet for iOS/iPadOS (Automatically attaches file to Mail)
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
         await navigator.share({
@@ -432,7 +418,23 @@ async function mailInvoice() {
           title: subjectString,
           text: bodyString
         });
-      } catch (e) {}
+      } catch (e) {
+        console.log("Share sheet dismissed");
+      }
+    } 
+    // 2. Fallback for Desktop browsers without share capabilities
+    else {
+      const url = URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      const mailtoUrl = `mailto:${encodeURIComponent(customerEmail)}?subject=${encodeURIComponent(subjectString)}&body=${encodeURIComponent(bodyString)}`;
+      window.location.href = mailtoUrl;
     }
 
   } catch (err) {
@@ -532,7 +534,7 @@ function importCustomers(event){
       if(typeof importedData !== 'object' || importedData === null){
         throw new Error("Invalid format");
       }
-      
+            
       const currentCustomers = getCustomers();
       let count = 0;
 
