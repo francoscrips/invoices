@@ -408,34 +408,22 @@ async function mailInvoice() {
     };
 
     const pdfBlob = await html2pdf().set(opt).from(element).output('blob');
-    const file = new File([pdfBlob], filename, { type: 'application/pdf' });
+    
+    // 1. Instantly trigger PDF download
+    const url = URL.createObjectURL(pdfBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 
-    // 1. Native Share Sheet for iOS/iPadOS (Automatically attaches file to Mail)
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({
-          files: [file],
-          title: subjectString,
-          text: bodyString
-        });
-      } catch (e) {
-        console.log("Share sheet dismissed");
-      }
-    } 
-    // 2. Fallback for Desktop browsers without share capabilities
-    else {
-      const url = URL.createObjectURL(pdfBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
+    // 2. Open Mail app directly with perfectly formatted To, Subject, and Body
+    setTimeout(() => {
       const mailtoUrl = `mailto:${encodeURIComponent(customerEmail)}?subject=${encodeURIComponent(subjectString)}&body=${encodeURIComponent(bodyString)}`;
       window.location.href = mailtoUrl;
-    }
+    }, 300);
 
   } catch (err) {
     if (err.name !== 'AbortError') {
